@@ -39,7 +39,7 @@
 
   body {
     font-family: var(--sans);
-    background: var(--bg);
+    background: #000000;
     color: var(--text);
     min-height: 100vh;
     overflow-x: hidden;
@@ -50,7 +50,7 @@
     content: '';
     position: fixed;
     inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' result='noise'/%3E%3C/filter%3E%3Crect width='256' height='256' fill='%23000000' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E");
     pointer-events: none;
     z-index: 0;
     opacity: 0.4;
@@ -61,10 +61,7 @@
     content: '';
     position: fixed;
     inset: 0;
-    background-image:
-      linear-gradient(rgba(77,255,140,0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(77,255,140,0.025) 1px, transparent 1px);
-    background-size: 48px 48px;
+    background: transparent;
     pointer-events: none;
     z-index: 0;
   }
@@ -998,162 +995,173 @@
     if (aqi <= 200) return "Members of sensitive groups (children, elderly, respiratory conditions) may experience effects. Reduce prolonged outdoor exertion.";
     if (aqi <= 300) return "Everyone may begin to experience health effects. Sensitive groups should avoid prolonged outdoor exertion. Wear N95 masks outdoors.";
     if (aqi <= 400) return "Health alert — everyone may experience serious health effects. Avoid outdoor activities. Keep windows closed. Use air purifiers indoors.";
-    return                 "⚠ Emergency conditions. Everyone should avoid all outdoor activities. Use N95 masks if going out is unavoidable. Stay indoors with air purification.";
+    return "Emergency level — health hazard. Stay indoors, use HEPA air purifiers. Seek medical attention if experiencing symptoms.";
+  }
+
+  function getAQICategoryLabel(aqi) {
+    if (aqi <= 50)  return "Good";
+    if (aqi <= 100) return "Satisfactory";
+    if (aqi <= 200) return "Moderate";
+    if (aqi <= 300) return "Poor";
+    if (aqi <= 400) return "Very Poor";
+    return "Severe";
   }
 
   function lookupAQI() {
-    const city  = document.getElementById("city-select").value;
-    const month = parseInt(document.getElementById("month-select").value);
+    const city = document.getElementById("city-select").value;
+    const month = parseInt(document.getElementById("month-select").value) - 1;
 
-    if (!city || !month) {
-      alert("Please select both a city and a month.");
+    if (!city || month < 0) {
+      alert("Please select both city and month");
       return;
     }
 
-    const data  = AQI_DATA[city] || DEFAULT_DATA;
-    const m     = month - 1;
-    const aqi   = data.aqi[m];
-    const cat   = getAQICategory(aqi);
-    const color = getAQIColor(aqi);
-    const pct   = Math.min((aqi / 500) * 100, 100);
+    const data = AQI_DATA[city] || DEFAULT_DATA;
+    const aqi = data.aqi[month];
+    const category = getAQICategory(aqi);
 
-    const panel = document.getElementById("result-panel");
-    const grid  = document.getElementById("result-grid");
+    const avgAnnual = Math.round(data.aqi.reduce((a,b) => a+b) / data.aqi.length);
 
-    // Build trend bars
-    const maxAqi = Math.max(...data.aqi);
-    const trendBars = MONTH_NAMES.map((mn, i) => {
-      const h   = Math.round((data.aqi[i] / maxAqi) * 100);
-      const col = getAQIColor(data.aqi[i]);
-      const active = i === m ? 'active' : '';
-      return `<div class="trend-bar-wrap ${active}" title="${mn}: ${data.aqi[i]}">
-        <div class="trend-bar" style="height:${h}%;background:${col};"></div>
-        <div class="trend-month-label">${mn}</div>
-      </div>`;
-    }).join("");
-
-    grid.innerHTML = `
-      <div class="aqi-main animate-in">
+    const html = `
+      <div class="aqi-main">
         <div class="aqi-number-wrap">
-          <div class="aqi-number" style="color:${color};">${aqi}</div>
+          <div class="aqi-number" style="color:${category.text};">${aqi}</div>
           <div class="aqi-label-sm">AQI Index</div>
-          <div class="aqi-bar-wrap" style="margin-top:8px;width:80px;margin-left:auto;margin-right:auto;">
-            <div class="aqi-bar" style="width:${pct}%;"></div>
-          </div>
         </div>
         <div class="aqi-info">
-          <div class="aqi-city-month">${city} · ${MONTH_FULL[m]}</div>
-          <div class="aqi-category-badge" style="background:${cat.bg};color:${cat.text};">${cat.label}</div>
+          <div class="aqi-city-month">${city} · ${MONTH_FULL[month]}</div>
+          <div class="aqi-category-badge" style="background:${category.bg}; color:${category.text};">${category.label}</div>
           <div class="aqi-health-advice">${getHealthAdvice(aqi)}</div>
+          <div class="aqi-bar-wrap">
+            <div class="aqi-bar" style="width:${Math.min(aqi/500*100, 100)}%;"></div>
+          </div>
         </div>
       </div>
 
-      <div class="stat-mini animate-in" style="animation-delay:0.05s;">
+      <div class="stat-mini">
+        <div class="stat-mini-label">PM2.5</div>
+        <div class="stat-mini-value">${data.pm25[month]}<span class="stat-mini-unit">µg/m³</span></div>
+      </div>
+
+      <div class="stat-mini">
+        <div class="stat-mini-label">PM10</div>
+        <div class="stat-mini-value">${data.pm10[month]}<span class="stat-mini-unit">µg/m³</span></div>
+      </div>
+
+      <div class="stat-mini">
+        <div class="stat-mini-label">NO₂</div>
+        <div class="stat-mini-value">${data.no2[month]}<span class="stat-mini-unit">ppb</span></div>
+      </div>
+
+      <div class="stat-mini">
+        <div class="stat-mini-label">SO₂</div>
+        <div class="stat-mini-value">${data.so2[month]}<span class="stat-mini-unit">ppb</span></div>
+      </div>
+
+      <div class="stat-mini">
         <div class="stat-mini-label">Temperature</div>
-        <div class="stat-mini-value">${data.temp[m]}<span class="stat-mini-unit">°C</span></div>
+        <div class="stat-mini-value">${data.temp[month]}<span class="stat-mini-unit">°C</span></div>
       </div>
-      <div class="stat-mini animate-in" style="animation-delay:0.1s;">
+
+      <div class="stat-mini">
         <div class="stat-mini-label">Humidity</div>
-        <div class="stat-mini-value">${data.hum[m]}<span class="stat-mini-unit">%</span></div>
+        <div class="stat-mini-value">${data.hum[month]}<span class="stat-mini-unit">%</span></div>
       </div>
-      <div class="stat-mini animate-in" style="animation-delay:0.15s;">
+
+      <div class="stat-mini">
         <div class="stat-mini-label">Wind Speed</div>
-        <div class="stat-mini-value">${data.wind[m]}<span class="stat-mini-unit">km/h</span></div>
+        <div class="stat-mini-value">${data.wind[month]}<span class="stat-mini-unit">m/s</span></div>
       </div>
-      <div class="stat-mini animate-in" style="animation-delay:0.2s;">
+
+      <div class="stat-mini">
         <div class="stat-mini-label">Rainfall</div>
-        <div class="stat-mini-value">${data.rain[m]}<span class="stat-mini-unit">mm</span></div>
+        <div class="stat-mini-value">${data.rain[month]}<span class="stat-mini-unit">mm</span></div>
       </div>
 
-      <div class="trend-section animate-in" style="animation-delay:0.25s;">
-        <div class="trend-title">// AQI across all 12 months — ${city}</div>
-        <div class="trend-chart">${trendBars}</div>
+      <div class="trend-section">
+        <div class="trend-title">12-Month Trend</div>
+        <div class="trend-chart" id="trend-chart">
+          ${data.aqi.map((val, i) => `
+            <div class="trend-bar-wrap" onclick="selectTrendMonth(${i})">
+              <div class="trend-bar" style="background:${getAQIColor(val)}; height:${val/3}px;"></div>
+              <div class="trend-month-label">${MONTH_NAMES[i]}</div>
+            </div>
+          `).join('')}
+        </div>
       </div>
 
-      <div class="pollutant-grid animate-in" style="animation-delay:0.3s;">
+      <div class="pollutant-grid">
         <div class="pollutant-chip">
-          <span class="pollutant-name">PM 2.5</span>
-          <span class="pollutant-val" style="color:${getAQIColor(data.pm25[m] * 3)};">${data.pm25[m]} <span style="font-size:0.65rem;color:var(--muted);">μg/m³</span></span>
+          <div class="pollutant-name">PM2.5</div>
+          <div class="pollutant-val" style="color:#ff6d00;">${data.pm25[month]}</div>
         </div>
         <div class="pollutant-chip">
-          <span class="pollutant-name">PM 10</span>
-          <span class="pollutant-val" style="color:${getAQIColor(data.pm10[m] * 1.5)};">${data.pm10[m]} <span style="font-size:0.65rem;color:var(--muted);">μg/m³</span></span>
+          <div class="pollutant-name">PM10</div>
+          <div class="pollutant-val" style="color:#ffd600;">${data.pm10[month]}</div>
         </div>
         <div class="pollutant-chip">
-          <span class="pollutant-name">NO₂</span>
-          <span class="pollutant-val">${data.no2[m]} <span style="font-size:0.65rem;color:var(--muted);">μg/m³</span></span>
+          <div class="pollutant-name">NO₂</div>
+          <div class="pollutant-val" style="color:#4dff8c;">${data.no2[month]}</div>
         </div>
         <div class="pollutant-chip">
-          <span class="pollutant-name">SO₂</span>
-          <span class="pollutant-val">${data.so2[m]} <span style="font-size:0.65rem;color:var(--muted);">μg/m³</span></span>
+          <div class="pollutant-name">SO₂</div>
+          <div class="pollutant-val" style="color:#00e676;">${data.so2[month]}</div>
         </div>
         <div class="pollutant-chip">
-          <span class="pollutant-name">Wind Effect</span>
-          <span class="pollutant-val" style="color:var(--green);">${data.wind[m] > 14 ? '↓ Cleaning' : '→ Stable'}</span>
+          <div class="pollutant-name">Annual Avg AQI</div>
+          <div class="pollutant-val" style="color:#aeea00;">${avgAnnual}</div>
         </div>
         <div class="pollutant-chip">
-          <span class="pollutant-name">Season</span>
-          <span class="pollutant-val" style="font-size:0.85rem;">${getSeason(month)}</span>
+          <div class="pollutant-name">Worst Month</div>
+          <div class="pollutant-val" style="color:#dd2c00;">${Math.max(...data.aqi)}</div>
         </div>
       </div>
     `;
 
-    panel.style.display = "block";
-    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    document.getElementById("result-grid").innerHTML = html;
+    document.getElementById("result-panel").style.display = "block";
+    document.getElementById("result-panel").classList.add("animate-in");
+
+    // Highlight selected month in trend
+    setTimeout(() => selectTrendMonth(month), 100);
   }
 
-  function getSeason(month) {
-    if ([12,1,2].includes(month)) return "❄️ Winter";
-    if ([3,4,5].includes(month))  return "☀️ Summer";
-    if ([6,7,8,9].includes(month)) return "🌧️ Monsoon";
-    return "🍂 Post-Monsoon";
+  function selectTrendMonth(monthIdx) {
+    document.querySelectorAll(".trend-bar-wrap").forEach(el => el.classList.remove("active"));
+    document.querySelectorAll(".trend-bar-wrap")[monthIdx].classList.add("active");
   }
 
-  // ── BUILD CITY RANKING CARDS ──
-  const rankings = Object.entries(AQI_DATA)
-    .map(([city, d]) => ({
-      city,
-      avgAqi: Math.round(d.aqi.reduce((a,b)=>a+b,0)/12)
-    }))
-    .sort((a,b) => b.avgAqi - a.avgAqi);
+  // Populate city rankings
+  function populateCityRankings() {
+    const rankings = Object.keys(AQI_DATA)
+      .map(city => ({
+        city,
+        avg: Math.round(AQI_DATA[city].aqi.reduce((a,b) => a+b) / AQI_DATA[city].aqi.length)
+      }))
+      .sort((a, b) => b.avg - a.avg);
 
-  const rankGrid = document.getElementById("city-ranking-grid");
-  rankings.forEach(({city, avgAqi}, i) => {
-    const cat   = getAQICategory(avgAqi);
-    const card  = document.createElement("div");
-    card.className = "city-rank-card";
-    card.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:start;">
-        <div class="city-rank-name">${city}</div>
-        <span class="rank-num">#${i+1}</span>
+    const html = rankings.map((r, i) => `
+      <div class="city-rank-card" onclick="selectCityRank('${r.city}')">
+        <div class="rank-num">#${i+1}</div>
+        <div class="city-rank-name">${r.city}</div>
+        <div class="city-rank-aqi" style="color:${getAQIColor(r.avg)};">${r.avg}</div>
+        <div class="city-rank-label">Annual Avg</div>
       </div>
-      <div class="city-rank-aqi" style="color:${cat.text};">${avgAqi}</div>
-      <div class="city-rank-label">${cat.label} · annual avg</div>
-    `;
-    card.onclick = () => {
-      document.getElementById("city-select").value = city;
-      document.getElementById("month-select").value = "1";
-      lookupAQI();
-      document.getElementById("lookup").scrollIntoView({behavior:"smooth"});
-    };
-    rankGrid.appendChild(card);
-  });
+    `).join("");
+
+    document.getElementById("city-ranking-grid").innerHTML = html;
+  }
+
+  function selectCityRank(city) {
+    document.getElementById("city-select").value = city;
+    document.getElementById("month-select").value = "1";
+    lookupAQI();
+    document.getElementById("lookup").scrollIntoView({ behavior: "smooth" });
+  }
+
+  // Initialize
+  document.addEventListener("DOMContentLoaded", populateCityRankings);
 </script>
-<section class="globe-section">
-  <h2>Global Wind Visualization</h2>
-  <p>Interactive globe showing wind direction and movement patterns.</p>
-
-  <iframe
-    src="https://earth.nullschool.net/"
-    title="Earth Nullschool Wind Globe"
-    loading="lazy"
-    style="width:100%; height:700px; border:0; border-radius:18px; overflow:hidden;">
-  </iframe>
-
-  <a href="https://earth.nullschool.net/" target="_blank" rel="noopener">
-    Open in new tab
-  </a>
-</section>
 
 </body>
 </html>
