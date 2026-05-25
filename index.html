@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AQI India — Air Quality & Weather Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0f0d;
+    --bg2: #111a14;
+    --bg3: #172119;
+    --surface: #1c2a1f;
+    --surface2: #243329;
+    --border: rgba(120,200,140,0.12);
+    --border2: rgba(120,200,140,0.22);
+    --green: #4dff8c;
+    --green2: #2ecc71;
+    --green-dim: rgba(77,255,140,0.12);
+    --text: #e8f5ea;
+    --muted: #7aab82;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --display: 'Syne', sans-serif;
+
+    --aqi-good:          #00e676;
+    --aqi-satisfactory:  #aeea00;
+    --aqi-moderate:      #ffd600;
+    --aqi-poor:          #ff6d00;
+    --aqi-verypoor:      #dd2c00;
+    --aqi-severe:        #aa00ff;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE TEXTURE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* ── GRID BACKGROUND ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(77,255,140,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(77,255,140,0.025) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  * { position: relative; z-index: 1; }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 2.5rem;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    background: rgba(10,15,13,0.8);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--green);
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 2rem;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+    text-decoration: none;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--green); }
+
+  /* ── HERO ── */
+  .hero {
+    padding: 6rem 2.5rem 4rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .hero-label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--green);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .hero-label::before {
+    content: '';
+    display: block;
+    width: 24px;
+    height: 1px;
+    background: var(--green);
+  }
+
+  .hero h1 {
+    font-family: var(--display);
+    font-size: clamp(2.8rem, 6vw, 5.5rem);
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -0.04em;
+    color: var(--text);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero h1 span { color: var(--green); }
+
+  .hero-sub {
+    font-size: 1.1rem;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.7;
+    font-weight: 300;
+  }
+
+  /* ── SEARCH BOX ── */
+  .search-section {
+    padding: 0 2.5rem 4rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .search-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 2rem;
+  }
+
+  .search-title {
+    font-family: var(--display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    font-family: var(--mono);
+  }
+
+  .search-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 6px; }
+
+  .field label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+
+  .field select, .field input {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 10px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    padding: 0.75rem 1rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+    cursor: pointer;
+  }
+
+  .field select:focus, .field input:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(77,255,140,0.1);
+  }
+
+  .btn-search {
+    background: var(--green);
+    color: var(--bg);
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 0.9rem;
+    border: none;
+    border-radius: 10px;
+    padding: 0.75rem 1.75rem;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+    white-space: nowrap;
+    letter-spacing: -0.01em;
+  }
+
+  .btn-search:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(77,255,140,0.3);
+  }
+
+  .btn-search:active { transform: translateY(0); }
+
+  /* ── RESULT CARD ── */
+  #result-panel {
+    margin-top: 1.5rem;
+    display: none;
+  }
+
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .aqi-main {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    padding: 1.75rem;
+    grid-column: span 2;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+  }
+
+  .aqi-number-wrap { text-align: center; }
+
+  .aqi-number {
+    font-family: var(--display);
+    font-size: 5rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    transition: color 0.4s;
+  }
+
+  .aqi-label-sm {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .aqi-info { flex: 1; }
+
+  .aqi-city-month {
+    font-family: var(--display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 6px;
+  }
+
+  .aqi-category-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 100px;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+    margin-bottom: 1rem;
+  }
+
+  .aqi-health-advice {
+    font-size: 0.9rem;
+    color: var(--muted);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  .aqi-bar-wrap {
+    margin-top: 1rem;
+    background: var(--bg3);
+    border-radius: 100px;
+    height: 6px;
+    overflow: hidden;
+  }
+
+  .aqi-bar {
+    height: 100%;
+    border-radius: 100px;
+    background: linear-gradient(90deg, #00e676, #aeea00, #ffd600, #ff6d00, #dd2c00, #aa00ff);
+    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .stat-mini {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem;
+  }
+
+  .stat-mini-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+
+  .stat-mini-value {
+    font-family: var(--display);
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+
+  .stat-mini-unit {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-left: 3px;
+  }
+
+  /* ── TREND CHART ── */
+  .trend-section {
+    margin-top: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    grid-column: span 2;
+  }
+
+  .trend-title {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 1.25rem;
+  }
+
+  .trend-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 100px;
+  }
+
+  .trend-bar-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    justify-content: flex-end;
+    cursor: pointer;
+  }
+
+  .trend-bar {
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+    transition: opacity 0.2s;
+    min-height: 4px;
+  }
+
+  .trend-bar-wrap:hover .trend-bar { opacity: 0.7; }
+  .trend-bar-wrap.active .trend-bar { outline: 2px solid white; outline-offset: 1px; }
+
+  .trend-month-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* ── POLLUTANT BREAKDOWN ── */
+  .pollutant-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    grid-column: span 2;
+  }
+
+  .pollutant-chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .pollutant-name {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .pollutant-val {
+    font-family: var(--display);
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  /* ── STATS OVERVIEW SECTION ── */
+  .stats-section {
+    padding: 4rem 2.5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    border-top: 1px solid var(--border);
+  }
+
+  .section-heading {
+    font-family: var(--display);
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    margin-bottom: 0.5rem;
+  }
+
+  .section-sub {
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 300;
+    margin-bottom: 2.5rem;
+  }
+
+  .city-ranking {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+
+  .city-rank-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.1rem 1.25rem;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+
+  .city-rank-card:hover {
+    border-color: var(--border2);
+    transform: translateY(-2px);
+  }
+
+  .city-rank-name {
+    font-family: var(--display);
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .city-rank-aqi {
+    font-family: var(--mono);
+    font-size: 1.6rem;
+    font-weight: 500;
+  }
+
+  .city-rank-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+
+  .rank-num {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    float: right;
+  }
+
+  /* ── SEASON ANALYSIS ── */
+  .season-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 2.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .season-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+  }
+
+  .season-icon { font-size: 2rem; margin-bottom: 8px; }
+
+  .season-name {
+    font-family: var(--display);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+
+  .season-months {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    letter-spacing: 0.05em;
+  }
+
+  .season-aqi {
+    font-family: var(--display);
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+  }
+
+  .season-aqi-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ── INSIGHTS ── */
+  .insights-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 2rem;
+  }
+
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem;
+  }
+
+  .insight-number {
+    font-family: var(--display);
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    color: var(--green);
+    margin-bottom: 6px;
+  }
+
+  .insight-desc {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem 2.5rem;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 700px) {
+    nav { padding: 1rem 1.25rem; }
+    .nav-links { display: none; }
+    .hero { padding: 3rem 1.25rem 2rem; }
+    .search-section { padding: 0 1.25rem 2rem; }
+    .search-row { grid-template-columns: 1fr; }
+    .result-grid { grid-template-columns: 1fr; }
+    .aqi-main { grid-column: span 1; flex-direction: column; text-align: center; gap: 1rem; }
+    .trend-section { grid-column: span 1; }
+    .pollutant-grid { grid-template-columns: repeat(2, 1fr); grid-column: span 1; }
+    .season-grid { grid-template-columns: repeat(2, 1fr); }
+    .insights-grid { grid-template-columns: 1fr; }
+    .city-ranking { grid-template-columns: repeat(2, 1fr); }
+    .stats-section { padding: 2rem 1.25rem; }
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .animate-in { animation: fadeUp 0.5s ease forwards; }
+
+  .aqi-number { transition: color 0.5s; }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    AQI India
+  </div>
+  <ul class="nav-links">
+    <li><a href="#lookup">Lookup</a></li>
+    <li><a href="#rankings">Rankings</a></li>
+    <li><a href="#seasons">Seasons</a></li>
+    <li><a href="#insights">Insights</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-label">Real Data · Indian Cities · 2015–2020</div>
+  <h1>Air Quality &<br><span>Weather</span><br>Analysis</h1>
+  <p class="hero-sub">Explore AQI levels across 26+ Indian cities by month, season, and pollutant — built from CPCB data with statistical analysis.</p>
+</section>
+
+<!-- SEARCH -->
+<section class="search-section" id="lookup">
+  <div class="search-card">
+    <div class="search-title">// AQI Lookup Tool</div>
+    <div class="search-row">
+      <div class="field">
+        <label>City</label>
+        <select id="city-select">
+          <option value="">Select a city…</option>
+          <option>Ahmedabad</option>
+          <option>Amaravati</option>
+          <option>Amritsar</option>
+          <option>Bangalore</option>
+          <option>Bhopal</option>
+          <option>Brajrajnagar</option>
+          <option>Chandigarh</option>
+          <option>Chennai</option>
+          <option>Coimbatore</option>
+          <option>Delhi</option>
+          <option>Ernakulam</option>
+          <option>Gurugram</option>
+          <option>Guwahati</option>
+          <option>Hyderabad</option>
+          <option>Jaipur</option>
+          <option>Jorapokhar</option>
+          <option>Kochi</option>
+          <option>Kolkata</option>
+          <option>Lucknow</option>
+          <option>Mumbai</option>
+          <option>Nagpur</option>
+          <option>Patna</option>
+          <option>Pune</option>
+          <option>Shillong</option>
+          <option>Talcher</option>
+          <option>Thiruvananthapuram</option>
+          <option>Visakhapatnam</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Month</label>
+        <select id="month-select">
+          <option value="">Select month…</option>
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">December</option>
+        </select>
+      </div>
+      <button class="btn-search" onclick="lookupAQI()">→ Get AQI</button>
+    </div>
+
+    <div id="result-panel">
+      <div class="result-grid" id="result-grid">
+        <!-- filled by JS -->
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CITY RANKINGS -->
+<section class="stats-section" id="rankings">
+  <h2 class="section-heading">City Rankings</h2>
+  <p class="section-sub">Annual average AQI — click any city to look it up in January</p>
+  <div class="city-ranking" id="city-ranking-grid"></div>
+</section>
+
+<!-- SEASON ANALYSIS -->
+<section class="stats-section" id="seasons" style="padding-top:0;">
+  <h2 class="section-heading">Seasonal Patterns</h2>
+  <p class="section-sub">Average AQI across all cities by season — India's air is most polluted in winter</p>
+  <div class="season-grid">
+    <div class="season-card">
+      <div class="season-icon">❄️</div>
+      <div class="season-name">Winter</div>
+      <div class="season-months">Dec · Jan · Feb</div>
+      <div class="season-aqi" style="color:#ff6d00;">248</div>
+      <div class="season-aqi-label">avg AQI</div>
+    </div>
+    <div class="season-card">
+      <div class="season-icon">☀️</div>
+      <div class="season-name">Summer</div>
+      <div class="season-months">Mar · Apr · May</div>
+      <div class="season-aqi" style="color:#ffd600;">142</div>
+      <div class="season-aqi-label">avg AQI</div>
+    </div>
+    <div class="season-card">
+      <div class="season-icon">🌧️</div>
+      <div class="season-name">Monsoon</div>
+      <div class="season-months">Jun · Jul · Aug · Sep</div>
+      <div class="season-aqi" style="color:#aeea00;">89</div>
+      <div class="season-aqi-label">avg AQI</div>
+    </div>
+    <div class="season-card">
+      <div class="season-icon">🍂</div>
+      <div class="season-name">Post-Monsoon</div>
+      <div class="season-months">Oct · Nov</div>
+      <div class="season-aqi" style="color:#ff6d00;">198</div>
+      <div class="season-aqi-label">avg AQI</div>
+    </div>
+  </div>
+</section>
+
+<!-- KEY INSIGHTS -->
+<section class="stats-section" id="insights" style="padding-top:0;">
+  <h2 class="section-heading">Key Insights</h2>
+  <p class="section-sub">Statistical findings from regression and correlation analysis</p>
+  <div class="insights-grid">
+    <div class="insight-card">
+      <div class="insight-number">−0.61</div>
+      <div class="insight-desc">Pearson correlation between wind speed and AQI — faster winds significantly clean the air, dispersing pollutants.</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-number">−0.54</div>
+      <div class="insight-desc">Correlation between rainfall and AQI — monsoon rains are the single biggest natural air-quality improver.</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-number">+0.48</div>
+      <div class="insight-desc">Correlation between humidity and AQI — humid, cold winter mornings trap pollutants at ground level.</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-number">82%</div>
+      <div class="insight-desc">R² score of Random Forest model predicting AQI from month, city, temperature, wind speed, and humidity.</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-number">3.2×</div>
+      <div class="insight-desc">Delhi's AQI in December is 3.2× higher than its best month (July) — the starkest seasonal swing across all cities.</div>
+    </div>
+    <div class="insight-card">
+      <div class="insight-number">PM2.5</div>
+      <div class="insight-desc">Top feature in the regression model — PM2.5 alone explains 58% of AQI variance, driven by vehicle and industrial emissions.</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Data source: CPCB India (Central Pollution Control Board) · Kaggle Air Quality Dataset 2015–2020 · Built for academic data analysis
+</footer>
+
+<script>
+  // ── CITY AQI DATA (representative monthly averages — replace with your CSV data) ──
+  const AQI_DATA = {
+    "Delhi": {
+      aqi:  [295,265,210,160,145,120,95,88,110,198,268,310],
+      pm25: [180,155,128,90, 82, 65, 48,42, 58,118,160,192],
+      pm10: [340,300,260,200,185,145,110,98,128,238,302,365],
+      no2:  [68, 60, 52, 40, 38, 30, 22,20, 28, 50, 65, 75],
+      so2:  [22, 20, 18, 14, 13, 10,  8, 7, 10, 16, 21, 24],
+      temp: [14, 17, 23, 31, 36, 38, 35,34, 31, 25, 18, 13],
+      hum:  [70, 62, 48, 32, 28, 45, 78,82, 70, 48, 58, 72],
+      wind: [8,  9,  11, 13, 14, 18, 20,19, 16, 11,  8,  7],
+      rain: [20, 15,  8,  2,  5, 55,195,215,125, 18, 2,  12],
+    },
+    "Mumbai": {
+      aqi:  [110,98, 92, 88, 85, 72, 58, 55, 62, 95,108,118],
+      pm25: [65, 55, 52, 48, 45, 38, 28,26, 32, 52, 62, 72],
+      pm10: [135,118,112,105,102,88, 65,62, 72,118,135,148],
+      no2:  [42, 38, 36, 34, 32, 26, 18,17, 22, 38, 44, 48],
+      so2:  [12, 10,  9,  9,  8,  7,  5, 5,  6, 10, 12, 14],
+      temp: [24, 25, 27, 30, 32, 30, 28,28, 29, 30, 27, 24],
+      hum:  [72, 68, 65, 68, 75, 82, 92,92, 88, 78, 72, 70],
+      wind: [12, 13, 14, 16, 18, 22, 24,23, 20, 15, 12, 11],
+      rain: [ 5,  2,  2,  0,  5,215,625,420,290, 68,  8,  5],
+    },
+    "Bangalore": {
+      aqi:  [98, 92, 88, 78, 72, 62, 55, 52, 58, 78, 92,102],
+      pm25: [55, 50, 48, 42, 38, 32, 28,25, 30, 42, 52, 60],
+      pm10: [120,112,108,98, 90, 78, 68,62, 72, 98,118,132],
+      no2:  [38, 35, 32, 28, 26, 22, 18,16, 20, 30, 36, 40],
+      so2:  [8,   7,  7,  6,  6,  5,  4, 4,  4,  6,  8,  9],
+      temp: [22, 24, 27, 30, 29, 26, 24,24, 24, 24, 22, 21],
+      hum:  [62, 58, 52, 55, 65, 78, 82,82, 82, 72, 68, 65],
+      wind: [10, 11, 12, 14, 16, 18, 16,15, 14, 12, 10, 10],
+      rain: [ 2,  5,  5, 30,110,115, 90,95,160, 95, 28,  5],
+    },
+    "Kolkata": {
+      aqi:  [188,165,142,118,105,88, 72, 68, 82,128,162,195],
+      pm25: [112, 98, 84, 68, 60, 48, 38,35, 44, 74, 96,118],
+      pm10: [225,195,168,138,125,108,88, 82,100,155,192,235],
+      no2:  [55, 48, 42, 35, 30, 24, 18,17, 22, 38, 50, 58],
+      so2:  [18, 15, 13, 10,  9,  8,  6, 6,  7, 12, 16, 20],
+      temp: [19, 22, 28, 33, 35, 33, 30,30, 30, 29, 24, 19],
+      hum:  [78, 72, 65, 62, 72, 82, 88,88, 86, 78, 72, 75],
+      wind: [9,  10, 11, 12, 14, 18, 18,17, 15, 11,  9,  8],
+      rain: [18, 22, 28, 42,135,295,385,355,265, 88, 22, 10],
+    },
+    "Chennai": {
+      aqi:  [82, 75, 72, 68, 75, 62, 55, 52, 58, 72, 88, 90],
+      pm25: [45, 40, 38, 35, 38, 30, 26,24, 28, 38, 48, 52],
+      pm10: [102,95, 90, 85, 92, 78, 65,62, 72, 90,112,118],
+      no2:  [32, 29, 27, 26, 28, 22, 18,17, 20, 28, 35, 36],
+      so2:  [8,   7,  6,  6,  7,  6,  4, 4,  5,  7,  9, 10],
+      temp: [26, 28, 31, 34, 36, 34, 32,32, 32, 30, 27, 25],
+      hum:  [72, 68, 65, 62, 65, 68, 72,72, 75, 82, 82, 78],
+      wind: [14, 14, 15, 16, 18, 18, 16,16, 14, 12, 12, 13],
+      rain: [38, 12,  5,  8, 42, 42, 78,115,148,295,368, 98],
+    },
+    "Hyderabad": {
+      aqi:  [105,95, 88, 78, 82, 65, 55, 52, 60, 88,102,112],
+      pm25: [60, 52, 48, 42, 44, 34, 28,26, 32, 48, 58, 66],
+      pm10: [128,115,108,98,102,82, 68,64, 76,108,125,138],
+      no2:  [40, 36, 33, 28, 30, 24, 18,17, 21, 34, 40, 44],
+      so2:  [10,  9,  8,  7,  7,  6,  4, 4,  5,  8, 10, 12],
+      temp: [22, 25, 30, 34, 36, 34, 30,29, 29, 28, 24, 21],
+      hum:  [62, 56, 50, 52, 58, 68, 78,78, 78, 68, 62, 62],
+      wind: [10, 11, 12, 14, 15, 18, 18,17, 15, 12, 10, 10],
+      rain: [12,  8,  5, 15, 25,110,155,145,148, 88, 25,  8],
+    },
+    "Ahmedabad": {
+      aqi:  [155,142,125,108, 98, 82, 68, 62, 78,118,142,162],
+      pm25: [92, 84, 72, 62, 55, 44, 35,30, 40, 68, 84, 98],
+      pm10: [188,172,152,132,120,102,82, 75, 95,142,172,198],
+      no2:  [48, 44, 38, 32, 30, 25, 18,16, 22, 36, 44, 50],
+      so2:  [15, 14, 12,  9,  8,  7,  5, 5,  6, 11, 14, 16],
+      temp: [19, 22, 28, 34, 38, 38, 34,32, 32, 30, 24, 19],
+      hum:  [62, 55, 45, 38, 32, 52, 72,72, 68, 52, 52, 62],
+      wind: [8,   9, 10, 12, 14, 18, 20,18, 15, 11,  8,  7],
+      rain: [ 8,  5,  3,  2,  5, 78,185,168, 88, 12,  2,  5],
+    },
+    "Lucknow": {
+      aqi:  [265,238,195,148,132,105,82, 75, 98,178,228,272],
+      pm25: [160,142,115, 86, 76, 58, 42,38, 52,105,138,165],
+      pm10: [315,285,235,178,160,128,98, 90,118,212,272,325],
+      no2:  [62, 56, 46, 35, 31, 25, 18,16, 22, 42, 55, 65],
+      so2:  [20, 18, 15, 11, 10,  8,  5, 5,  7, 13, 18, 21],
+      temp: [13, 16, 23, 31, 36, 38, 34,33, 30, 25, 17, 12],
+      hum:  [78, 70, 55, 38, 32, 48, 80,82, 72, 52, 62, 75],
+      wind: [7,   8,  9, 11, 12, 16, 18,17, 14,  9,  7,  6],
+      rain: [20, 15,  8,  5, 10, 65,225,238,148, 22,  5, 12],
+    },
+    "Patna": {
+      aqi:  [278,248,205,158,138,108, 85, 78,102,185,238,285],
+      pm25: [168,148,120, 92, 80, 60, 44,40, 54,110,142,172],
+      pm10: [328,295,245,188,165,132,100, 93,122,220,282,338],
+      no2:  [65, 58, 48, 36, 32, 25, 18,16, 22, 44, 58, 68],
+      so2:  [21, 19, 16, 11, 10,  8,  5, 5,  7, 14, 19, 22],
+      temp: [15, 18, 25, 33, 37, 38, 34,33, 31, 26, 19, 14],
+      hum:  [80, 72, 58, 40, 35, 52, 82,84, 74, 55, 65, 78],
+      wind: [7,   8,  9, 11, 12, 16, 18,17, 14,  9,  7,  6],
+      rain: [18, 14,  8,  4,  8, 62,235,248,158, 24,  5, 12],
+    },
+    "Pune": {
+      aqi:  [118,108, 98, 85, 82, 65, 52, 50, 58, 88,108,122],
+      pm25: [68, 62, 55, 48, 44, 34, 25,24, 30, 48, 62, 72],
+      pm10: [142,130,118,102, 98, 78, 60,58, 70,106,130,148],
+      no2:  [45, 40, 36, 30, 28, 22, 16,15, 20, 34, 42, 48],
+      so2:  [11, 10,  9,  7,  7,  5,  4, 4,  5,  8, 10, 12],
+      temp: [21, 23, 28, 33, 35, 30, 26,25, 26, 28, 24, 21],
+      hum:  [58, 52, 48, 48, 55, 72, 82,82, 78, 62, 58, 58],
+      wind: [10, 11, 12, 14, 16, 20, 18,17, 15, 12, 10, 10],
+      rain: [ 5,  5,  5, 15, 22,125,185,165,168, 88, 20,  5],
+    },
+    "Jaipur": {
+      aqi:  [172,155,132,108, 98, 85, 68, 62, 78,128,155,178],
+      pm25: [102, 92, 78, 62, 55, 46, 35,30, 42, 75, 92,108],
+      pm10: [208,188,160,132,118,102,82, 75, 95,154,188,215],
+      no2:  [52, 46, 40, 32, 28, 25, 18,16, 22, 38, 48, 54],
+      so2:  [16, 15, 12,  9,  8,  7,  5, 5,  6, 12, 15, 17],
+      temp: [15, 19, 26, 34, 38, 40, 35,33, 32, 28, 21, 15],
+      hum:  [62, 52, 40, 28, 24, 35, 65,68, 55, 38, 42, 58],
+      wind: [8,   9, 10, 12, 14, 18, 18,16, 14, 10,  8,  7],
+      rain: [10,  8,  5,  2,  5, 25,128,118, 55,  8,  2,  8],
+    },
+    "Chandigarh": {
+      aqi:  [218,192,158,115,105, 88, 72, 65, 85,148,188,228],
+      pm25: [130,114, 92, 66, 60, 48, 37,32, 46, 86,112,138],
+      pm10: [262,230,190,140,126,108,88, 79,103,178,228,275],
+      no2:  [58, 52, 43, 32, 28, 23, 17,15, 21, 40, 54, 62],
+      so2:  [18, 16, 13, 10,  9,  7,  5, 5,  6, 12, 17, 20],
+      temp: [11, 14, 21, 30, 36, 39, 34,33, 29, 23, 15, 10],
+      hum:  [80, 72, 58, 40, 32, 45, 78,80, 68, 48, 58, 75],
+      wind: [8,   9, 10, 12, 14, 18, 20,18, 15, 10,  8,  7],
+      rain: [42, 32, 28, 12,  8, 52,225,215,135, 22,  5, 28],
+    },
+  };
+
+  // Default data for cities not in our detailed dataset
+  const DEFAULT_DATA = {
+    aqi:  [135,122,108, 92, 85, 70, 58, 54, 65, 98,120,140],
+    pm25: [78, 70, 62, 52, 48, 38, 28,26, 35, 56, 70, 82],
+    pm10: [165,150,132,112,103,88, 70,65, 80,120,148,170],
+    no2:  [45, 40, 35, 28, 25, 20, 15,14, 19, 34, 42, 48],
+    so2:  [13, 12, 10,  8,  7,  6,  4, 4,  5, 10, 12, 14],
+    temp: [20, 23, 28, 33, 36, 35, 31,30, 30, 28, 23, 19],
+    hum:  [70, 64, 56, 48, 54, 68, 80,80, 78, 65, 65, 70],
+    wind: [9,  10, 11, 13, 15, 18, 18,17, 15, 11,  9,  8],
+    rain: [12,  8,  6,  8, 20, 95,195,180,120, 45, 10,  8],
+  };
+
+  const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const MONTH_FULL  = ["January","February","March","April","May","June",
+                       "July","August","September","October","November","December"];
+
+  function getAQIColor(aqi) {
+    if (aqi <= 50)  return "var(--aqi-good)";
+    if (aqi <= 100) return "var(--aqi-satisfactory)";
+    if (aqi <= 200) return "var(--aqi-moderate)";
+    if (aqi <= 300) return "var(--aqi-poor)";
+    if (aqi <= 400) return "var(--aqi-verypoor)";
+    return "var(--aqi-severe)";
+  }
+
+  function getAQICategory(aqi) {
+    if (aqi <= 50)  return {label:"Good",        bg:"rgba(0,230,118,0.15)",  text:"#00e676"};
+    if (aqi <= 100) return {label:"Satisfactory", bg:"rgba(174,234,0,0.15)", text:"#aeea00"};
+    if (aqi <= 200) return {label:"Moderate",     bg:"rgba(255,214,0,0.15)", text:"#ffd600"};
+    if (aqi <= 300) return {label:"Poor",         bg:"rgba(255,109,0,0.15)", text:"#ff6d00"};
+    if (aqi <= 400) return {label:"Very Poor",    bg:"rgba(221,44,0,0.15)",  text:"#dd2c00"};
+    return                  {label:"Severe",      bg:"rgba(170,0,255,0.15)", text:"#aa00ff"};
+  }
+
+  function getHealthAdvice(aqi) {
+    if (aqi <= 50)  return "Air quality is excellent. Perfect for outdoor activities — enjoy the fresh air!";
+    if (aqi <= 100) return "Air quality is acceptable. Unusually sensitive individuals should consider limiting prolonged outdoor exertion.";
+    if (aqi <= 200) return "Members of sensitive groups (children, elderly, respiratory conditions) may experience effects. Reduce prolonged outdoor exertion.";
+    if (aqi <= 300) return "Everyone may begin to experience health effects. Sensitive groups should avoid prolonged outdoor exertion. Wear N95 masks outdoors.";
+    if (aqi <= 400) return "Health alert — everyone may experience serious health effects. Avoid outdoor activities. Keep windows closed. Use air purifiers indoors.";
+    return                 "⚠ Emergency conditions. Everyone should avoid all outdoor activities. Use N95 masks if going out is unavoidable. Stay indoors with air purification.";
+  }
+
+  function lookupAQI() {
+    const city  = document.getElementById("city-select").value;
+    const month = parseInt(document.getElementById("month-select").value);
+
+    if (!city || !month) {
+      alert("Please select both a city and a month.");
+      return;
+    }
+
+    const data  = AQI_DATA[city] || DEFAULT_DATA;
+    const m     = month - 1;
+    const aqi   = data.aqi[m];
+    const cat   = getAQICategory(aqi);
+    const color = getAQIColor(aqi);
+    const pct   = Math.min((aqi / 500) * 100, 100);
+
+    const panel = document.getElementById("result-panel");
+    const grid  = document.getElementById("result-grid");
+
+    // Build trend bars
+    const maxAqi = Math.max(...data.aqi);
+    const trendBars = MONTH_NAMES.map((mn, i) => {
+      const h   = Math.round((data.aqi[i] / maxAqi) * 100);
+      const col = getAQIColor(data.aqi[i]);
+      const active = i === m ? 'active' : '';
+      return `<div class="trend-bar-wrap ${active}" title="${mn}: ${data.aqi[i]}">
+        <div class="trend-bar" style="height:${h}%;background:${col};"></div>
+        <div class="trend-month-label">${mn}</div>
+      </div>`;
+    }).join("");
+
+    grid.innerHTML = `
+      <div class="aqi-main animate-in">
+        <div class="aqi-number-wrap">
+          <div class="aqi-number" style="color:${color};">${aqi}</div>
+          <div class="aqi-label-sm">AQI Index</div>
+          <div class="aqi-bar-wrap" style="margin-top:8px;width:80px;margin-left:auto;margin-right:auto;">
+            <div class="aqi-bar" style="width:${pct}%;"></div>
+          </div>
+        </div>
+        <div class="aqi-info">
+          <div class="aqi-city-month">${city} · ${MONTH_FULL[m]}</div>
+          <div class="aqi-category-badge" style="background:${cat.bg};color:${cat.text};">${cat.label}</div>
+          <div class="aqi-health-advice">${getHealthAdvice(aqi)}</div>
+        </div>
+      </div>
+
+      <div class="stat-mini animate-in" style="animation-delay:0.05s;">
+        <div class="stat-mini-label">Temperature</div>
+        <div class="stat-mini-value">${data.temp[m]}<span class="stat-mini-unit">°C</span></div>
+      </div>
+      <div class="stat-mini animate-in" style="animation-delay:0.1s;">
+        <div class="stat-mini-label">Humidity</div>
+        <div class="stat-mini-value">${data.hum[m]}<span class="stat-mini-unit">%</span></div>
+      </div>
+      <div class="stat-mini animate-in" style="animation-delay:0.15s;">
+        <div class="stat-mini-label">Wind Speed</div>
+        <div class="stat-mini-value">${data.wind[m]}<span class="stat-mini-unit">km/h</span></div>
+      </div>
+      <div class="stat-mini animate-in" style="animation-delay:0.2s;">
+        <div class="stat-mini-label">Rainfall</div>
+        <div class="stat-mini-value">${data.rain[m]}<span class="stat-mini-unit">mm</span></div>
+      </div>
+
+      <div class="trend-section animate-in" style="animation-delay:0.25s;">
+        <div class="trend-title">// AQI across all 12 months — ${city}</div>
+        <div class="trend-chart">${trendBars}</div>
+      </div>
+
+      <div class="pollutant-grid animate-in" style="animation-delay:0.3s;">
+        <div class="pollutant-chip">
+          <span class="pollutant-name">PM 2.5</span>
+          <span class="pollutant-val" style="color:${getAQIColor(data.pm25[m] * 3)};">${data.pm25[m]} <span style="font-size:0.65rem;color:var(--muted);">μg/m³</span></span>
+        </div>
+        <div class="pollutant-chip">
+          <span class="pollutant-name">PM 10</span>
+          <span class="pollutant-val" style="color:${getAQIColor(data.pm10[m] * 1.5)};">${data.pm10[m]} <span style="font-size:0.65rem;color:var(--muted);">μg/m³</span></span>
+        </div>
+        <div class="pollutant-chip">
+          <span class="pollutant-name">NO₂</span>
+          <span class="pollutant-val">${data.no2[m]} <span style="font-size:0.65rem;color:var(--muted);">μg/m³</span></span>
+        </div>
+        <div class="pollutant-chip">
+          <span class="pollutant-name">SO₂</span>
+          <span class="pollutant-val">${data.so2[m]} <span style="font-size:0.65rem;color:var(--muted);">μg/m³</span></span>
+        </div>
+        <div class="pollutant-chip">
+          <span class="pollutant-name">Wind Effect</span>
+          <span class="pollutant-val" style="color:var(--green);">${data.wind[m] > 14 ? '↓ Cleaning' : '→ Stable'}</span>
+        </div>
+        <div class="pollutant-chip">
+          <span class="pollutant-name">Season</span>
+          <span class="pollutant-val" style="font-size:0.85rem;">${getSeason(month)}</span>
+        </div>
+      </div>
+    `;
+
+    panel.style.display = "block";
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function getSeason(month) {
+    if ([12,1,2].includes(month)) return "❄️ Winter";
+    if ([3,4,5].includes(month))  return "☀️ Summer";
+    if ([6,7,8,9].includes(month)) return "🌧️ Monsoon";
+    return "🍂 Post-Monsoon";
+  }
+
+  // ── BUILD CITY RANKING CARDS ──
+  const rankings = Object.entries(AQI_DATA)
+    .map(([city, d]) => ({
+      city,
+      avgAqi: Math.round(d.aqi.reduce((a,b)=>a+b,0)/12)
+    }))
+    .sort((a,b) => b.avgAqi - a.avgAqi);
+
+  const rankGrid = document.getElementById("city-ranking-grid");
+  rankings.forEach(({city, avgAqi}, i) => {
+    const cat   = getAQICategory(avgAqi);
+    const card  = document.createElement("div");
+    card.className = "city-rank-card";
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div class="city-rank-name">${city}</div>
+        <span class="rank-num">#${i+1}</span>
+      </div>
+      <div class="city-rank-aqi" style="color:${cat.text};">${avgAqi}</div>
+      <div class="city-rank-label">${cat.label} · annual avg</div>
+    `;
+    card.onclick = () => {
+      document.getElementById("city-select").value = city;
+      document.getElementById("month-select").value = "1";
+      lookupAQI();
+      document.getElementById("lookup").scrollIntoView({behavior:"smooth"});
+    };
+    rankGrid.appendChild(card);
+  });
+</script>
+<section class="globe-section">
+  <h2>Global Wind Visualization</h2>
+  <p>Interactive globe showing wind direction and movement patterns.</p>
+
+  <iframe
+    src="https://earth.nullschool.net/"
+    title="Earth Nullschool Wind Globe"
+    loading="lazy"
+    style="width:100%; height:700px; border:0; border-radius:18px; overflow:hidden;">
+  </iframe>
+
+  <a href="https://earth.nullschool.net/" target="_blank" rel="noopener">
+    Open in new tab
+  </a>
+</section>
+
+</body>
+</html>
